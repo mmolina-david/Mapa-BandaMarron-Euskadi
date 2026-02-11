@@ -444,8 +444,8 @@
         "&WIDTH=256&HEIGHT=256";
     }
 
-    // Campo fijo: "afeccion"
-    function activeField() { return 'afeccion'; }
+    // Campo fijo: "clase"
+    function activeField() { return 'clase'; }
 
     function colorExprForClase() {
       return [
@@ -686,9 +686,9 @@
       const cls = Number(props?.[activeField()]);
       const badgeColor = colorForClass(cls);
 
-      const resumen = (Number.isFinite(cls) && cls === -1)
+      const Afeccion = (Number.isFinite(cls) && cls === -1)
         ? 'Sin datos disponibles'
-        : (props?.resumen ?? '—');
+        : (props?.Afeccion ?? '—');
 
       return `
         <div class="mfv-pop-head">
@@ -701,7 +701,7 @@
           </div>
           <div class="mfv-row mfv-stack">
             <div class="mfv-k">Afección:</div>
-            <div class="mfv-v">${resumen}</div>
+            <div class="mfv-v">${Afeccion}</div>
           </div>
         </div>
       `;
