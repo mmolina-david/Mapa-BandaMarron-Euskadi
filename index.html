@@ -411,7 +411,9 @@
 
     // ✅ IMPORTANTE: “source-layer” debe coincidir con el nombre de capa dentro del PMTiles.
     // Tippecanoe lo controla con: tippecanoe ... -l mfv
-    const MFV_SOURCE_LAYER = 'mfv';
+    function mfvSourceLayerForYear(year) {
+  return `${year}_afeccion_EPSG4326`;
+}
 
     const DETAIL_ZOOM = 13;
 
@@ -743,7 +745,7 @@
         id: 'mfv-fill',
         type: 'fill',
         source: 'mfv',
-        'source-layer': MFV_SOURCE_LAYER,
+        'source-layer': mfvSourceLayerForYear(activeYear),
         paint: {
           'fill-color': colorExprForClase(),
           'fill-opacity': fillOpacityExpr()
