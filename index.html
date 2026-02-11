@@ -444,8 +444,8 @@
         "&WIDTH=256&HEIGHT=256";
     }
 
-    // Campo fijo: "clase"
-    function activeField() { return 'clase'; }
+    // Campo fijo: "afeccion"
+    function activeField() { return 'afeccion'; }
 
     function colorExprForClase() {
       return [
@@ -507,7 +507,7 @@
           }
         },
         layers: [
-          { id: 'satellite', type: 'raster', source: 'satellite' }
+          { id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }
         ]
       },
       center: [0, 0],
@@ -583,7 +583,7 @@
       map.addSource('satellite', { type: 'raster', tiles, tileSize: 256 });
 
       if (map.getLayer('mfv-fill')) {
-        map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' }, 'mfv-fill');
+        map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }, 'mfv-fill');
       } else {
         map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' });
       }
