@@ -10,7 +10,6 @@
 
   <!-- ✅ PMTiles (para usar pmtiles:// en MapLibre) -->
   <script src="https://unpkg.com/pmtiles@^4.0/dist/pmtiles.js"></script>
-  <!-- Nota: este patrón de CDN es el habitual para PMTiles en web. :contentReference[oaicite:0]{index=0} -->
 
   <style>
     html, body { margin: 0; padding: 0; height: 100%; }
@@ -23,7 +22,7 @@
       z-index: 30;
       font-family: sans-serif;
       user-select: none;
-      width: 290px;
+      width: 320px;
     }
 
     .panel-wrap {
@@ -244,6 +243,7 @@
     }
     #modalClose:hover { background: rgba(0,0,0,0.12); }
 
+    /* popup base */
     .mfv-popup .maplibregl-popup-content{
       border-radius: 12px;
       padding: 10px;
@@ -256,48 +256,81 @@
       padding: 2px 8px;
       opacity: 0.7;
     }
-    .mfv-pop-head{
-      display:flex;
-      align-items:center;
-      justify-content: flex-end;
-      margin: 0 0 8px 0;
-    }
-    .mfv-badge{
-      width: 12px;
-      height: 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(0,0,0,0.18);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-      flex: 0 0 12px;
-    }
-    .mfv-pop-grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      font-size: 12.5px;
-      line-height: 1.25;
-    }
-    .mfv-row{
-      display:flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 12px;
-      border-top: 1px solid rgba(0,0,0,0.08);
-      padding-top: 8px;
-    }
-    .mfv-row:first-child{ border-top:0; padding-top:0; }
-    .mfv-k{ font-weight: 700; opacity: 0.75; white-space: nowrap; }
-    .mfv-v{ font-weight: 700; margin-left: auto; text-align:right; }
-    .mfv-row.mfv-stack{
-      flex-direction: column;
-      align-items: stretch;
+
+    /* ==========================================================
+       Tabs dentro del panel + cards "Al pinchar"
+       ========================================================== */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 6px;
+      padding: 10px 12px 0 12px;
+      border-bottom: 1px solid rgba(0,0,0,0.10);
     }
-    .mfv-row.mfv-stack .mfv-v{
-      text-align: right;
-      font-weight: 600;
-      opacity: 0.92;
-      white-space: normal;
+    .tab-btn{
+      border: 1px solid rgba(0,0,0,0.10);
+      background: rgba(0,0,0,0.04);
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0.9;
+    }
+    .tab-btn[aria-selected="true"]{
+      background: rgba(255,255,255,0.95);
+      border-color: rgba(0,0,0,0.20);
+      opacity: 1;
+    }
+    .tab-panel { padding: 0; }
+    .tab-panel[hidden] { display: none; }
+
+    .click-tab {
+      display: grid;
+      gap: 10px;
+      padding: 10px 12px 12px 12px;
+    }
+    .card {
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.95);
+    }
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 6px 10px;
+      font-size: 12.5px;
+      line-height: 1.2;
+      align-items: start;
+    }
+    .kv .k { color: rgba(0,0,0,0.62); font-weight: 700; }
+    .kv .v { color: rgba(0,0,0,0.92); font-weight: 600; word-break: break-word; text-align: right; }
+
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .empty-click {
+      border: 1px dashed rgba(0,0,0,0.18);
+      background: rgba(0,0,0,0.02);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+      opacity: 0.85;
+      line-height: 1.3;
+    }
+
+    @media (max-width: 480px) {
+      #uiPanel { width: 92vw; left: 4vw; bottom: 14px; }
+      .two-cols { grid-template-columns: 1fr; }
+      .kv { grid-template-columns: 130px 1fr; }
     }
   </style>
 </head>
@@ -319,78 +352,98 @@
     <div class="panel-wrap">
       <div class="panel-content">
 
-        <div class="panel-section">
-          <button id="bmBtn" class="bm-button" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <img id="bmLogo" class="bm-logo" alt="geoEuskadi" />
-            <div class="bm-current">
-              <div id="bmYearLabel" class="bm-label">2018</div>
-              <div class="bm-sub">Ortofoto (RGB)</div>
+        <div class="tabs" role="tablist" aria-label="Panel">
+          <button id="tab-controls" class="tab-btn" role="tab" aria-controls="panel-controls" aria-selected="true" type="button">Controles</button>
+          <button id="tab-click" class="tab-btn" role="tab" aria-controls="panel-click" aria-selected="false" type="button">Al pinchar</button>
+        </div>
+
+        <!-- ===== Panel CONTROLES ===== -->
+        <div id="panel-controls" class="tab-panel" role="tabpanel" aria-labelledby="tab-controls">
+
+          <div class="panel-section">
+            <button id="bmBtn" class="bm-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <img id="bmLogo" class="bm-logo" alt="geoEuskadi" />
+              <div class="bm-current">
+                <div id="bmYearLabel" class="bm-label">2018</div>
+                <div class="bm-sub">Ortofoto (RGB)</div>
+              </div>
+              <div class="bm-caret">▾</div>
+            </button>
+
+            <div id="bmPanel" class="bm-panel" role="listbox" aria-label="Selector de ortofoto">
+              <div class="bm-title">Fuente: Eusko Jaurlaritza / Gobierno Vasco. geoEuskadi</div>
+              <div id="bmOptions" class="bm-options"></div>
             </div>
-            <div class="bm-caret">▾</div>
-          </button>
-
-          <div id="bmPanel" class="bm-panel" role="listbox" aria-label="Selector de ortofoto">
-            <div class="bm-title">Fuente: Eusko Jaurlaritza / Gobierno Vasco. geoEuskadi</div>
-            <div id="bmOptions" class="bm-options"></div>
           </div>
+
+          <div class="panel-section">
+            <div class="legend-title">
+              <span>Nivel de afección</span>
+              <span class="legend-actions">
+                <button id="allBtn" type="button">Todas</button>
+                <button id="noneBtn" type="button">Ninguna</button>
+              </span>
+            </div>
+
+            <label class="legend-item">
+              <span class="legend-left">
+                <span class="legend-color" style="background:#bdbdbd;"></span>
+                <span>Sin datos</span>
+              </span>
+              <input type="checkbox" class="class-toggle" value="-1" checked />
+            </label>
+
+            <label class="legend-item">
+              <span class="legend-left">
+                <span class="legend-color" style="background:#a6d96a;"></span>
+                <span>Sano (0%)</span>
+              </span>
+              <input type="checkbox" class="class-toggle" value="0" checked />
+            </label>
+
+            <label class="legend-item">
+              <span class="legend-left">
+                <span class="legend-color" style="background:#ffffc0;"></span>
+                <span>Leve (&lt;20%)</span>
+              </span>
+              <input type="checkbox" class="class-toggle" value="1" checked />
+            </label>
+
+            <label class="legend-item">
+              <span class="legend-left">
+                <span class="legend-color" style="background:#fdae61;"></span>
+                <span>Moderado (20-60%)</span>
+              </span>
+              <input type="checkbox" class="class-toggle" value="2" checked />
+            </label>
+
+            <label class="legend-item" style="margin-bottom:0;">
+              <span class="legend-left">
+                <span class="legend-color" style="background:#d7191c;"></span>
+                <span>Grave (&gt;60%)</span>
+              </span>
+              <input type="checkbox" class="class-toggle" value="3" checked />
+            </label>
+          </div>
+
+          <div class="panel-section">
+            <div class="year-row">
+              <div id="yearLabel">2018</div>
+              <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
+            </div>
+            <div class="year-hint">Año MFV (carga &lt;AÑO&gt;_afeccion_EPSG4326.pmtiles)</div>
+          </div>
+
         </div>
 
-        <div class="panel-section">
-          <div class="legend-title">
-            <span>Nivel de afección</span>
-            <span class="legend-actions">
-              <button id="allBtn" type="button">Todas</button>
-              <button id="noneBtn" type="button">Ninguna</button>
-            </span>
+        <!-- ===== Panel AL PINCHAR ===== -->
+        <div id="panel-click" class="tab-panel" role="tabpanel" aria-labelledby="tab-click" hidden>
+          <div id="clickTabContent" class="click-tab">
+            <div class="empty-click">
+              Aún no has pinchado en una tesela.<br/>
+              Pincha sobre el mapa (capa MFV) y aquí aparecerán los cuadros con Ubicación + MFCAE + Daños.
+            </div>
           </div>
-
-          <label class="legend-item">
-            <span class="legend-left">
-              <span class="legend-color" style="background:#bdbdbd;"></span>
-              <span>Sin datos</span>
-            </span>
-            <input type="checkbox" class="class-toggle" value="-1" checked />
-          </label>
-
-          <label class="legend-item">
-            <span class="legend-left">
-              <span class="legend-color" style="background:#a6d96a;"></span>
-              <span>Sano (0%)</span>
-            </span>
-            <input type="checkbox" class="class-toggle" value="0" checked />
-          </label>
-
-          <label class="legend-item">
-            <span class="legend-left">
-              <span class="legend-color" style="background:#ffffc0;"></span>
-              <span>Leve (&lt;20%)</span>
-            </span>
-            <input type="checkbox" class="class-toggle" value="1" checked />
-          </label>
-
-          <label class="legend-item">
-            <span class="legend-left">
-              <span class="legend-color" style="background:#fdae61;"></span>
-              <span>Moderado (20-60%)</span>
-            </span>
-            <input type="checkbox" class="class-toggle" value="2" checked />
-          </label>
-
-          <label class="legend-item" style="margin-bottom:0;">
-            <span class="legend-left">
-              <span class="legend-color" style="background:#d7191c;"></span>
-              <span>Grave (&gt;60%)</span>
-            </span>
-            <input type="checkbox" class="class-toggle" value="3" checked />
-          </label>
-        </div>
-
-        <div class="panel-section">
-          <div class="year-row">
-            <div id="yearLabel">2018</div>
-            <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
-          </div>
-          <div class="year-hint">Año MFV (carga &lt;AÑO&gt;_afeccion_EPSG4326.pmtiles)</div>
         </div>
 
       </div>
@@ -400,20 +453,20 @@
   <script>
     const LOGO_URL = './data/geoeuskadi.png';
 
-    // ✅ Prepárate para añadir más PMTiles por año (de momento solo tienes 2018)
+    // ✅ Años disponibles
     const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
     const DEFAULT_YEAR = 2018;
 
-    // ✅ Patrón recomendado de nombres (renombra tu 2018.pmtiles a esto, o cambia esta función)
+    // ✅ PMTiles generados por tu script: base.geojson -> base.pmtiles
+    // Ejemplo: 2018_afeccion_EPSG4326.geojson -> 2018_afeccion_EPSG4326.pmtiles
     function mfvPmtilesForYear(year) {
-      return `./data/${year}.pmtiles`;
+      return `./data/${year}_afeccion_EPSG4326.pmtiles`;
     }
 
-    // ✅ IMPORTANTE: “source-layer” debe coincidir con el nombre de capa dentro del PMTiles.
-    // Tippecanoe lo controla con: tippecanoe ... -l mfv
+    // ✅ tippecanoe -l mfv  => source-layer interno del PMTiles es "mfv"
     function mfvSourceLayerForYear(year) {
-  return `${year}_afeccion_EPSG4326`;
-}
+      return 'mfv';
+    }
 
     const DETAIL_ZOOM = 13;
 
@@ -444,31 +497,33 @@
         "&WIDTH=256&HEIGHT=256";
     }
 
-    // Campo fijo: "clase"
-    function activeField() { return 'clase'; }
+    // ==========================================================
+    // ✅ CLAVE: normalizar clase (3.0 -> 3) para color y filtros
+    // ==========================================================
+    function claseIntExpr() {
+      // Si no es número, -1
+      return ['case',
+        ['all', ['has', 'clase'], ['!=', ['get', 'clase'], null]],
+        ['to-number', ['round', ['to-number', ['get', 'clase']]]],
+        -1
+      ];
+    }
 
     function colorExprForClase() {
       return [
         'match',
-        ['to-number', ['get', activeField()]],
+        claseIntExpr(),
         -1, CLASS_COLORS['-1'],
         0, CLASS_COLORS[0],
         1, CLASS_COLORS[1],
         2, CLASS_COLORS[2],
         3, CLASS_COLORS[3],
-        CLASS_COLORS['-1'] // fallback -> gris
+        CLASS_COLORS['-1']
       ];
     }
 
-    function fillOpacityExpr() {
-      return [
-        'interpolate', ['linear'], ['zoom'],
-        0, 0.70,
-        DETAIL_ZOOM - 0.1, 0.70,
-        DETAIL_ZOOM, 0.00,
-        22, 0.00
-      ];
-    }
+    // ✅ Para depurar, dejamos fill siempre visible (evita “parece que no carga”)
+    function fillOpacityExpr() { return 0.65; }
 
     function lineWidthExpr() {
       return [
@@ -491,9 +546,14 @@
       return s.replace(/\./g, ' ');
     }
 
-    // ✅ PMTiles Protocol -> habilita pmtiles://
+    // ✅ PMTiles Protocol
     const pmtilesProtocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+
+    // PMTiles necesita HTTP Range (si abres con file:// suele fallar)
+    if (location.protocol === 'file:') {
+      console.warn('⚠️ Estás en file://. Usa http:// (Live Server o: python -m http.server).');
+    }
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -510,12 +570,47 @@
           { id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }
         ]
       },
-      center: [0, 0],
-      zoom: 2
+      center: [-2.7, 43.1],
+      zoom: 7
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
+
+    map.on('error', (e) => console.warn('🧨 MapLibre error:', e?.error || e));
+
+    // ✅ Debug: confirma Range (debería ser status 206 + Content-Range)
+    async function debugPmtilesFetch(path) {
+      try {
+        const res = await fetch(path, { headers: { Range: 'bytes=0-255' } });
+        console.log('PMTiles fetch status:', res.status, res.statusText);
+        console.log('Accept-Ranges:', res.headers.get('accept-ranges'));
+        console.log('Content-Range:', res.headers.get('content-range'));
+      } catch (err) {
+        console.warn('🧨 No se puede fetch del PMTiles:', err);
+      }
+    }
+
+    // ✅ Auto-zoom leyendo el header del PMTiles
+    let didAutoZoom = false;
+    async function autoZoomToPmtiles(year) {
+      if (didAutoZoom) return;
+      const pmtilesPath = mfvPmtilesForYear(year);
+      try {
+        const p = new pmtiles.PMTiles(pmtilesPath);
+        const h = await p.getHeader();
+        if (![h?.minLon, h?.minLat, h?.maxLon, h?.maxLat].every(Number.isFinite)) {
+          console.warn('⚠️ Header PMTiles sin bounds válidos:', h);
+          return;
+        }
+        const bounds = [[h.minLon, h.minLat], [h.maxLon, h.maxLat]];
+        map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 12.8 });
+        didAutoZoom = true;
+        console.log('✅ Auto-zoom a bounds PMTiles:', bounds);
+      } catch (e) {
+        console.warn('🧨 No pude leer header PMTiles (Range/file://):', e);
+      }
+    }
 
     // Modal
     const modalOverlay = document.getElementById('modalOverlay');
@@ -529,18 +624,29 @@
     const toggleIcon = document.getElementById('toggleIcon');
 
     function setPanelOpen(open) {
-      if (open) {
-        uiPanel.classList.remove('collapsed');
-        toggleIcon.textContent = '❯';
-      } else {
-        uiPanel.classList.add('collapsed');
-        toggleIcon.textContent = '❮';
-      }
+      if (open) { uiPanel.classList.remove('collapsed'); toggleIcon.textContent = '❯'; }
+      else { uiPanel.classList.add('collapsed'); toggleIcon.textContent = '❮'; }
     }
     panelToggle.addEventListener('click', (e) => { e.stopPropagation(); setPanelOpen(uiPanel.classList.contains('collapsed')); });
     setPanelOpen(true);
 
-    // WMS selector
+    // Tabs
+    const tabControlsBtn = document.getElementById('tab-controls');
+    const tabClickBtn    = document.getElementById('tab-click');
+    const panelControls  = document.getElementById('panel-controls');
+    const panelClick     = document.getElementById('panel-click');
+
+    function selectPanelTab(which) {
+      const isControls = which === 'controls';
+      tabControlsBtn.setAttribute('aria-selected', isControls ? 'true' : 'false');
+      tabClickBtn.setAttribute('aria-selected', isControls ? 'false' : 'true');
+      panelControls.hidden = !isControls;
+      panelClick.hidden = isControls;
+    }
+    tabControlsBtn.addEventListener('click', () => selectPanelTab('controls'));
+    tabClickBtn.addEventListener('click', () => selectPanelTab('click'));
+
+    // Basemap selector
     const bmBtn = document.getElementById('bmBtn');
     const bmPanel = document.getElementById('bmPanel');
     const bmOptions = document.getElementById('bmOptions');
@@ -613,7 +719,7 @@
     renderBasemapOptions();
     updateBasemapUI(DEFAULT_YEAR);
 
-    // Slider años
+    // Slider
     const yearSlider = document.getElementById('yearSlider');
     const yearLabel  = document.getElementById('yearLabel');
 
@@ -634,7 +740,7 @@
       yearLabel.textContent = String(activeYear);
     }
 
-    // Leyenda filtros
+    // Filtros
     function selectedClasses() {
       const toggles = Array.from(document.querySelectorAll('.class-toggle'));
       return toggles.filter(cb => cb.checked).map(cb => Number(cb.value));
@@ -643,13 +749,13 @@
     function applyClassFilter() {
       const selected = selectedClasses();
       const hide = (selected.length === 0);
-      const filter = hide ? null : ['in', ['to-number', ['get', activeField()]], ['literal', selected]];
+      // ✅ usa la expresión normalizada a entero
+      const filter = hide ? null : ['in', claseIntExpr(), ['literal', selected]];
 
       ['mfv-fill','mfv-line'].forEach(layerId => {
         if (!map.getLayer(layerId)) return;
-        if (hide) {
-          map.setLayoutProperty(layerId, 'visibility', 'none');
-        } else {
+        if (hide) map.setLayoutProperty(layerId, 'visibility', 'none');
+        else {
           map.setLayoutProperty(layerId, 'visibility', 'visible');
           map.setFilter(layerId, filter);
         }
@@ -676,32 +782,30 @@
     // Popup
     let mfvPopup = null;
 
-    function colorForClass(cls) {
-      const key = String(cls);
-      return (key in CLASS_COLORS) ? CLASS_COLORS[key] : CLASS_COLORS['-1'];
-    }
-
     function popupHTML(props) {
       const sup = formatNumberSpace(props?.sup, 2);
-      const cls = Number(props?.[activeField()]);
-      const badgeColor = colorForClass(cls);
+
+      // ✅ normaliza clase para el badge
+      const rawCls = Number(props?.clase);
+      const cls = Number.isFinite(rawCls) ? Math.round(rawCls) : -1;
+      const badgeColor = (String(cls) in CLASS_COLORS) ? CLASS_COLORS[String(cls)] : CLASS_COLORS['-1'];
 
       const Afeccion = (Number.isFinite(cls) && cls === -1)
         ? 'Sin datos disponibles'
         : (props?.Afeccion ?? '—');
 
       return `
-        <div class="mfv-pop-head">
-          <div class="mfv-badge" style="background:${badgeColor};"></div>
+        <div style="display:flex;justify-content:flex-end;margin:0 0 8px 0;">
+          <div style="width:12px;height:12px;border-radius:4px;border:1px solid rgba(0,0,0,0.18);background:${badgeColor};"></div>
         </div>
-        <div class="mfv-pop-grid">
-          <div class="mfv-row">
-            <div class="mfv-k">Superficie (ha):</div>
-            <div class="mfv-v">${sup}</div>
+        <div style="display:grid;gap:8px;font-size:12.5px;line-height:1.25;">
+          <div style="display:flex;justify-content:space-between;gap:12px;border-top:0;padding-top:0;">
+            <div style="font-weight:700;opacity:.75;">Superficie (ha):</div>
+            <div style="font-weight:700;text-align:right;">${sup}</div>
           </div>
-          <div class="mfv-row mfv-stack">
-            <div class="mfv-k">Afección:</div>
-            <div class="mfv-v">${Afeccion}</div>
+          <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(0,0,0,0.08);padding-top:8px;">
+            <div style="font-weight:700;opacity:.75;">Afección:</div>
+            <div style="text-align:right;font-weight:600;opacity:.92;">${Afeccion}</div>
           </div>
         </div>
       `;
@@ -720,32 +824,24 @@
 
     function setPointerCursor(on) { map.getCanvas().style.cursor = on ? 'pointer' : ''; }
 
-    // ✅ (PMTiles) Cambiar año = cambiar SOURCE (vector) y volver a crear capas
+    // PMTiles layers/source
     function removeMfvLayersAndSource() {
       closeMfvPopup();
-
-      // capas
-      ['mfv-fill','mfv-line'].forEach(id => {
-        if (map.getLayer(id)) map.removeLayer(id);
-      });
-
-      // source
+      ['mfv-fill','mfv-line'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
       if (map.getSource('mfv')) map.removeSource('mfv');
     }
 
     function addMfvSourceAndLayersForYear(year) {
       const pmtilesPath = mfvPmtilesForYear(year);
+      const sourceLayer = mfvSourceLayerForYear(year);
 
-      map.addSource('mfv', {
-        type: 'vector',
-        url: `pmtiles://${pmtilesPath}`
-      });
+      map.addSource('mfv', { type: 'vector', url: `pmtiles://${pmtilesPath}` });
 
       map.addLayer({
         id: 'mfv-fill',
         type: 'fill',
         source: 'mfv',
-        'source-layer': mfvSourceLayerForYear(activeYear),
+        'source-layer': sourceLayer,
         paint: {
           'fill-color': colorExprForClase(),
           'fill-opacity': fillOpacityExpr()
@@ -756,7 +852,7 @@
         id: 'mfv-line',
         type: 'line',
         source: 'mfv',
-        'source-layer': MFV_SOURCE_LAYER,
+        'source-layer': sourceLayer,
         paint: {
           'line-color': colorExprForClase(),
           'line-width': lineWidthExpr(),
@@ -767,28 +863,72 @@
       applyStyle();
     }
 
-    async function loadMfvYear(year, fit = false) {
+    async function loadMfvYear(year) {
       removeMfvLayersAndSource();
       addMfvSourceAndLayersForYear(year);
-
-      // esperar a que estén los tiles listos antes de interactuar
       await new Promise(resolve => map.once('idle', resolve));
-
-      if (fit) {
-        // Si quieres “fit”, lo más fiable sin leer el PMTiles es fijarlo manualmente.
-        // Si lo necesitas, lo hacemos en el siguiente paso (guardando bounds por año).
-      }
     }
 
+    // Tab "Al pinchar"
+    const clickTabContent = document.getElementById('clickTabContent');
+
+    function safeText(v) {
+      if (v === null || v === undefined || v === '') return 'sin datos';
+      return String(v);
+    }
+    function fmtNum(v, decimals = 2) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 'sin datos';
+      return n.toFixed(decimals);
+    }
+
+    function renderClickTab(props, xyString) {
+      clickTabContent.innerHTML = `
+        <div class="card">
+          <h3>Ubicación</h3>
+          <div class="kv">
+            <div class="k">XY</div><div class="v">${safeText(xyString)}</div>
+            <div class="k">Municipio</div><div class="v">${safeText(props?.NOMBRE_TOP)}</div>
+            <div class="k">Provincia</div><div class="v">${safeText(props?.TERRITORIO)}</div>
+            <div class="k">Comarca</div><div class="v">${safeText(props?.COMARC_EUS)}</div>
+          </div>
+        </div>
+
+        <div class="two-cols">
+          <div class="card">
+            <h3>Info. Mapa Forestal (MFCAE)</h3>
+            <div class="kv">
+              <div class="k">Superficie (ha)</div><div class="v">${fmtNum(props?.sup, 2)}</div>
+              <div class="k">Especie</div><div class="v">${safeText(props?.DES_SP1)}</div>
+              <div class="k">Estado</div><div class="v">${safeText(props?.DES_E1)}</div>
+              <div class="k">Acompañante</div><div class="v">${safeText(props?.DES_SP2)}</div>
+              <div class="k">FCC (%)</div><div class="v">${fmtNum(props?.FCCARB, 2)}</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Daños por banda marrón</h3>
+            <div class="kv">
+              <div class="k">Afección mayoritaria</div><div class="v">${safeText(props?.nom_clase)}</div>
+              <div class="k">Estado de la tesela</div><div class="v">${safeText(props?.Afeccion)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // LOAD
     map.on('load', async () => {
       initYearSlider();
       initLegendHandlers();
 
-      // Primera carga (PMTiles)
       addMfvSourceAndLayersForYear(DEFAULT_YEAR);
       ensureBasemapBelow();
 
-      // Cursor + click popup
+      // ✅ debug + autozoom
+      debugPmtilesFetch(mfvPmtilesForYear(DEFAULT_YEAR));
+      await autoZoomToPmtiles(DEFAULT_YEAR);
+
       map.on('mouseenter', 'mfv-fill', () => setPointerCursor(true));
       map.on('mouseleave', 'mfv-fill', () => setPointerCursor(false));
       map.on('mouseenter', 'mfv-line', () => setPointerCursor(true));
@@ -797,26 +937,25 @@
       map.on('click', (e) => {
         const feats = map.queryRenderedFeatures(e.point, { layers: ['mfv-fill', 'mfv-line'] });
         if (!feats || feats.length === 0) return;
+
         const f = feats.find(x => x.layer && x.layer.id === 'mfv-fill') || feats[0];
         openMfvPopup(e.lngLat, f);
+
+        const props = f.properties || {};
+        const xy = `${e.lngLat.lng.toFixed(6)}, ${e.lngLat.lat.toFixed(6)}`;
+        renderClickTab(props, xy);
+        selectPanelTab('click');
       });
 
-      // (Opcional) espera primera carga para que el usuario no cliquee “a medias”
-      await new Promise(resolve => map.once('idle', resolve));
-
-      // Slider -> recarga PMTiles por año
       yearSlider.addEventListener('input', async () => {
         activeYear = yearFromIndex(yearSlider.value);
         yearLabel.textContent = String(activeYear);
 
-        await loadMfvYear(activeYear, false);
+        await loadMfvYear(activeYear);
 
-        if (ORTO_YEARS.includes(activeYear)) {
-          setBasemapYear(activeYear);
-        }
+        if (ORTO_YEARS.includes(activeYear)) setBasemapYear(activeYear);
       });
     });
   </script>
 </body>
 </html>
-
