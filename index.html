@@ -300,7 +300,7 @@
     }
 
     /* ==========================================================
-       ✅ NUEVO: Tabs dentro del panel + cards "Al pinchar"
+       ✅ Tabs dentro del panel + cards "Al pinchar"
        ========================================================== */
     .tabs {
       display: grid;
@@ -398,13 +398,13 @@
     <div class="panel-wrap">
       <div class="panel-content">
 
-        <!-- ✅ NUEVO: Tabs -->
+        <!-- ✅ Tabs -->
         <div class="tabs" role="tablist" aria-label="Panel">
           <button id="tab-controls" class="tab-btn" role="tab" aria-controls="panel-controls" aria-selected="true" type="button">Controles</button>
           <button id="tab-click" class="tab-btn" role="tab" aria-controls="panel-click" aria-selected="false" type="button">Al pinchar</button>
         </div>
 
-        <!-- ===== Panel: CONTROLES (lo que ya tenías) ===== -->
+        <!-- ===== Panel: CONTROLES ===== -->
         <div id="panel-controls" class="tab-panel" role="tabpanel" aria-labelledby="tab-controls">
 
           <div class="panel-section">
@@ -483,7 +483,7 @@
 
         </div>
 
-        <!-- ===== Panel: AL PINCHAR (nuevo) ===== -->
+        <!-- ===== Panel: AL PINCHAR ===== -->
         <div id="panel-click" class="tab-panel" role="tabpanel" aria-labelledby="tab-click" hidden>
           <div id="clickTabContent" class="click-tab">
             <div class="empty-click">
@@ -509,7 +509,7 @@
       return `./data/${year}.pmtiles`;
     }
 
-    // ✅ source-layer dentro del PMTiles
+    // ✅ source-layer dentro del PMTiles (típico si se generó con tippecanoe -l mfv)
     function mfvSourceLayerForYear(year) {
       return `mfv`;
     }
@@ -590,9 +590,14 @@
       return s.replace(/\./g, ' ');
     }
 
-    // ✅ PMTiles Protocol
+    // ✅ PMTiles Protocol -> habilita pmtiles://
     const pmtilesProtocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+
+    // ✅ Aviso: PMTiles normalmente necesita http(s) con Range requests (file:// suele fallar)
+    if (location.protocol === 'file:') {
+      console.warn('⚠️ Estás abriendo con file://. Sirve la carpeta por http:// (ej: python -m http.server) para PMTiles.');
+    }
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -609,14 +614,45 @@
           { id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }
         ]
       },
-      center: [0, 0],
-      zoom: 2
+      // ✅ Inicio razonable; de todas formas haremos AUTO-ZOOM al PMTiles al abrir
+      center: [-2.7, 43.1],
+      zoom: 7
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
 
+    // ==========================================================
+    // ✅ AUTO-ZOOM: lee bounds reales del PMTiles y hace fitBounds
+    // ==========================================================
+    let didAutoZoom = false;
+
+    async function autoZoomToPmtiles(year) {
+      if (didAutoZoom) return; // ✅ solo al abrir (si quieres por año, quita esta línea)
+      const pmtilesPath = mfvPmtilesForYear(year);
+
+      try {
+        const p = new pmtiles.PMTiles(pmtilesPath);
+        const h = await p.getHeader(); // {minLon,minLat,maxLon,maxLat,...}
+
+        if (![h?.minLon, h?.minLat, h?.maxLon, h?.maxLat].every(Number.isFinite)) {
+          console.warn('⚠️ Header PMTiles sin bounds válidos:', h);
+          return;
+        }
+
+        const bounds = [[h.minLon, h.minLat], [h.maxLon, h.maxLat]];
+        map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 14 });
+        didAutoZoom = true;
+
+        console.log('✅ Auto-zoom a bounds PMTiles:', bounds);
+      } catch (e) {
+        console.warn('🧨 No pude leer el header del PMTiles (típico si estás en file:// o sin Range):', e);
+      }
+    }
+
+    // ==========================================================
     // Modal
+    // ==========================================================
     const modalOverlay = document.getElementById('modalOverlay');
     document.getElementById('modalClose').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
@@ -639,9 +675,9 @@
     panelToggle.addEventListener('click', (e) => { e.stopPropagation(); setPanelOpen(uiPanel.classList.contains('collapsed')); });
     setPanelOpen(true);
 
-    /* ==========================================================
-       ✅ NUEVO: Tabs del panel (Controles / Al pinchar)
-       ========================================================== */
+    // ==========================================================
+    // Tabs del panel (Controles / Al pinchar)
+    // ==========================================================
     const tabControlsBtn = document.getElementById('tab-controls');
     const tabClickBtn    = document.getElementById('tab-click');
     const panelControls  = document.getElementById('panel-controls');
@@ -658,7 +694,9 @@
     tabControlsBtn.addEventListener('click', () => selectPanelTab('controls'));
     tabClickBtn.addEventListener('click', () => selectPanelTab('click'));
 
+    // ==========================================================
     // WMS selector
+    // ==========================================================
     const bmBtn = document.getElementById('bmBtn');
     const bmPanel = document.getElementById('bmPanel');
     const bmOptions = document.getElementById('bmOptions');
@@ -731,7 +769,9 @@
     renderBasemapOptions();
     updateBasemapUI(DEFAULT_YEAR);
 
+    // ==========================================================
     // Slider años
+    // ==========================================================
     const yearSlider = document.getElementById('yearSlider');
     const yearLabel  = document.getElementById('yearLabel');
 
@@ -752,7 +792,9 @@
       yearLabel.textContent = String(activeYear);
     }
 
+    // ==========================================================
     // Leyenda filtros
+    // ==========================================================
     function selectedClasses() {
       const toggles = Array.from(document.querySelectorAll('.class-toggle'));
       return toggles.filter(cb => cb.checked).map(cb => Number(cb.value));
@@ -791,7 +833,9 @@
       noneBtn.addEventListener('click', () => { toggles.forEach(cb => cb.checked = false); applyClassFilter(); });
     }
 
-    // Popup
+    // ==========================================================
+    // Popup (el tuyo)
+    // ==========================================================
     let mfvPopup = null;
 
     function colorForClass(cls) {
@@ -838,7 +882,9 @@
 
     function setPointerCursor(on) { map.getCanvas().style.cursor = on ? 'pointer' : ''; }
 
-    // ✅ (PMTiles) Cambiar año = cambiar SOURCE (vector) y volver a crear capas
+    // ==========================================================
+    // PMTiles: cargar/quitar capas
+    // ==========================================================
     function removeMfvLayersAndSource() {
       closeMfvPopup();
 
@@ -873,7 +919,7 @@
         id: 'mfv-line',
         type: 'line',
         source: 'mfv',
-        'source-layer': sourceLayer,   // ✅ FIX: antes usabas MFV_SOURCE_LAYER (no existía)
+        'source-layer': sourceLayer,
         paint: {
           'line-color': colorExprForClase(),
           'line-width': lineWidthExpr(),
@@ -890,14 +936,13 @@
 
       await new Promise(resolve => map.once('idle', resolve));
 
-      if (fit) {
-        // aquí podrías hacer fitBounds si guardas bounds por año
-      }
+      // Si quisieras auto-zoom al cambiar de año:
+      // if (fit) await autoZoomToPmtiles(year);
     }
 
-    /* ==========================================================
-       ✅ NUEVO: Render de la pestaña "Al pinchar" (cuadritos)
-       ========================================================== */
+    // ==========================================================
+    // Pestaña "Al pinchar" (cuadritos)
+    // ==========================================================
     const clickTabContent = document.getElementById('clickTabContent');
 
     function safeText(v) {
@@ -946,13 +991,21 @@
       `;
     }
 
+    // ==========================================================
+    // LOAD
+    // ==========================================================
     map.on('load', async () => {
       initYearSlider();
       initLegendHandlers();
 
+      // Primera carga (PMTiles)
       addMfvSourceAndLayersForYear(DEFAULT_YEAR);
       ensureBasemapBelow();
 
+      // ✅ AUTO-ZOOM al abrir usando el header del PMTiles
+      await autoZoomToPmtiles(DEFAULT_YEAR);
+
+      // Cursor + click popup + pestaña
       map.on('mouseenter', 'mfv-fill', () => setPointerCursor(true));
       map.on('mouseleave', 'mfv-fill', () => setPointerCursor(false));
       map.on('mouseenter', 'mfv-line', () => setPointerCursor(true));
@@ -964,10 +1017,8 @@
 
         const f = feats.find(x => x.layer && x.layer.id === 'mfv-fill') || feats[0];
 
-        // ✅ Mantienes el popup (como antes)
         openMfvPopup(e.lngLat, f);
 
-        // ✅ NUEVO: rellena la pestaña "Al pinchar" y ábrela
         const props = f.properties || {};
         const xy = `${e.lngLat.lng.toFixed(6)}, ${e.lngLat.lat.toFixed(6)}`;
         renderClickTab(props, xy);
@@ -976,6 +1027,7 @@
 
       await new Promise(resolve => map.once('idle', resolve));
 
+      // Slider -> recarga PMTiles por año
       yearSlider.addEventListener('input', async () => {
         activeYear = yearFromIndex(yearSlider.value);
         yearLabel.textContent = String(activeYear);
@@ -990,4 +1042,3 @@
   </script>
 </body>
 </html>
-
