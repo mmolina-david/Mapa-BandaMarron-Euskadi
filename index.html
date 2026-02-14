@@ -15,9 +15,9 @@
     html, body { margin: 0; padding: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
 
-    /* ==========================================================
-       PANEL: dimensiones + scroll (ajuste de formato)
-       ========================================================== */
+    /* =========================
+       PANEL: tamaño y scroll
+       ========================= */
     #uiPanel{
       position:absolute;
       left: 20px;
@@ -25,22 +25,20 @@
       z-index: 30;
       font-family: sans-serif;
       user-select: none;
-      width: 360px;              /* ✅ más ancho para evitar texto en vertical */
+      width: 360px;
       max-height: calc(100vh - 40px);
     }
-
     .panel-wrap{
       position: relative;
       background: rgba(255,255,255,0.92);
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0,0,0,0.22);
       overflow: hidden;
-      max-height: calc(100vh - 40px); /* ✅ el panel no se sale de pantalla */
+      max-height: calc(100vh - 40px);
     }
-
     .panel-content{
       max-height: calc(100vh - 40px);
-      overflow: auto;            /* ✅ scroll dentro del panel */
+      overflow: auto;
     }
 
     .panel-section{
@@ -252,10 +250,9 @@
       opacity:.7;
     }
 
-    /* ==========================================================
-       Tabs: Leyenda / Tesela (renombradas)
-       + sticky para que no “se pierdan” con el scroll
-       ========================================================== */
+    /* =========================
+       Tabs: Leyenda / Tesela
+       ========================= */
     .tabs{
       position: sticky;
       top: 0;
@@ -287,14 +284,14 @@
     .tab-panel[hidden]{ display:none; }
 
     /* ==========================================================
-       Tesela: cards y "kv" (evita texto vertical)
+       Tesela: 3 cards apiladas (Ubicación -> Afección -> MFCAE)
+       + contenido compacto y legible
        ========================================================== */
     .click-tab{
       display:grid;
       gap:10px;
       padding: 10px 12px 12px 12px;
     }
-
     .card{
       border:1px solid rgba(0,0,0,0.12);
       border-radius: 12px;
@@ -309,7 +306,7 @@
 
     .kv{
       display:grid;
-      grid-template-columns: 140px minmax(0, 1fr); /* ✅ ancho fijo para etiqueta + valor flexible */
+      grid-template-columns: 140px minmax(0, 1fr);
       gap: 6px 10px;
       font-size: 12.5px;
       line-height: 1.25;
@@ -325,14 +322,15 @@
       font-weight: 700;
       text-align: right;
       white-space: normal;
-      word-break: normal;
-      overflow-wrap: anywhere;   /* ✅ rompe por palabras si hace falta, no letra a letra */
+      overflow-wrap: anywhere;
     }
 
-    .two-cols{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+    /* Para valores “largos” (Afección %) hacemos bloque compacto */
+    .kv .v.long {
+      text-align: left;
+      font-weight: 650;
+      line-height: 1.25;
+      padding-top: 2px;
     }
 
     .empty-click{
@@ -347,7 +345,6 @@
 
     @media (max-width: 480px){
       #uiPanel{ width: 92vw; left: 4vw; bottom: 14px; }
-      .two-cols{ grid-template-columns: 1fr; }
       .kv{ grid-template-columns: 130px minmax(0,1fr); }
     }
   </style>
@@ -371,12 +368,11 @@
       <div class="panel-content">
 
         <div class="tabs" role="tablist" aria-label="Panel">
-          <!-- ✅ Renombradas: Leyenda / Tesela -->
           <button id="tab-controls" class="tab-btn" role="tab" aria-controls="panel-controls" aria-selected="true" type="button">Leyenda</button>
           <button id="tab-click" class="tab-btn" role="tab" aria-controls="panel-click" aria-selected="false" type="button">Tesela</button>
         </div>
 
-        <!-- ===== Panel LEYENDA (antes Controles) ===== -->
+        <!-- ===== Panel LEYENDA ===== -->
         <div id="panel-controls" class="tab-panel" role="tabpanel" aria-labelledby="tab-controls">
 
           <div class="panel-section">
@@ -455,12 +451,12 @@
 
         </div>
 
-        <!-- ===== Panel TESELA (antes Al pinchar) ===== -->
+        <!-- ===== Panel TESELA (3 cards apiladas) ===== -->
         <div id="panel-click" class="tab-panel" role="tabpanel" aria-labelledby="tab-click" hidden>
           <div id="clickTabContent" class="click-tab">
             <div class="empty-click">
               Aún no has pinchado en una tesela.<br/>
-              Pincha sobre el mapa (capa MFV) y aquí aparecerán los cuadros con Ubicación + MFCAE + Daños.
+              Pincha sobre el mapa (capa MFV) y aquí aparecerán los cuadros con Ubicación + Afección + Mapa Forestal.
             </div>
           </div>
         </div>
@@ -557,24 +553,9 @@
       ];
     }
 
-    function formatNumberSpace(n, digits = 2) {
-      const num = Number(n);
-      if (!Number.isFinite(num)) return '—';
-      const s = new Intl.NumberFormat('es-ES', {
-        useGrouping: true,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: digits
-      }).format(num);
-      return s.replace(/\./g, ' ');
-    }
-
     // PMTiles protocol
     const pmtilesProtocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
-
-    if (location.protocol === 'file:') {
-      console.warn('⚠️ Estás en file://. Usa http:// (Live Server o: python -m http.server).');
-    }
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -598,19 +579,7 @@
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
 
-    map.on('error', (e) => console.warn('🧨 MapLibre error:', e?.error || e));
-
-    async function debugPmtilesFetch(path) {
-      try {
-        const res = await fetch(path, { headers: { Range: 'bytes=0-255' } });
-        console.log('PMTiles fetch status:', res.status, res.statusText);
-        console.log('Accept-Ranges:', res.headers.get('accept-ranges'));
-        console.log('Content-Range:', res.headers.get('content-range'));
-      } catch (err) {
-        console.warn('🧨 No se puede fetch del PMTiles:', err);
-      }
-    }
-
+    // Auto-zoom leyendo header
     let didAutoZoom = false;
     async function autoZoomToPmtiles(year) {
       if (didAutoZoom) return;
@@ -622,9 +591,7 @@
         const bounds = [[h.minLon, h.minLat], [h.maxLon, h.maxLat]];
         map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 12.8 });
         didAutoZoom = true;
-      } catch (e) {
-        console.warn('🧨 No pude leer header PMTiles:', e);
-      }
+      } catch (_) {}
     }
 
     // Modal
@@ -799,9 +766,19 @@
     // Popup
     let mfvPopup = null;
 
+    function formatNumberSpace(n, digits = 2) {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '—';
+      const s = new Intl.NumberFormat('es-ES', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: digits
+      }).format(num);
+      return s.replace(/\./g, ' ');
+    }
+
     function popupHTML(props) {
       const sup = formatNumberSpace(props?.sup, 2);
-
       const rawCls = Number(props?.clase);
       const cls = Number.isFinite(rawCls) ? Math.round(rawCls) : -1;
       const badgeColor = (String(cls) in CLASS_COLORS) ? CLASS_COLORS[String(cls)] : CLASS_COLORS['-1'];
@@ -828,7 +805,6 @@
     }
 
     function closeMfvPopup() { if (mfvPopup) { mfvPopup.remove(); mfvPopup = null; } }
-
     function openMfvPopup(lngLat, feature) {
       closeMfvPopup();
       mfvPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '380px', offset: 10 })
@@ -885,7 +861,7 @@
       await new Promise(resolve => map.once('idle', resolve));
     }
 
-    // Tab "Tesela"
+    // Tesela tab render (3 cards)
     const clickTabContent = document.getElementById('clickTabContent');
 
     function safeText(v) {
@@ -910,24 +886,22 @@
           </div>
         </div>
 
-        <div class="two-cols">
-          <div class="card">
-            <h3>Info. Mapa Forestal (MFCAE)</h3>
-            <div class="kv">
-              <div class="k">Superficie (ha)</div><div class="v">${fmtNum(props?.sup, 2)}</div>
-              <div class="k">Especie</div><div class="v">${safeText(props?.DES_SP1)}</div>
-              <div class="k">Estado</div><div class="v">${safeText(props?.DES_E1)}</div>
-              <div class="k">Acompañante</div><div class="v">${safeText(props?.DES_SP2)}</div>
-              <div class="k">FCC (%)</div><div class="v">${fmtNum(props?.FCCARB, 2)}</div>
-            </div>
+        <div class="card">
+          <h3>Afección</h3>
+          <div class="kv">
+            <div class="k">Afección mayoritaria</div><div class="v">${safeText(props?.nom_clase)}</div>
+            <div class="k">Estado de la tesela</div><div class="v long">${safeText(props?.Afeccion)}</div>
           </div>
+        </div>
 
-          <div class="card">
-            <h3>Daños por banda marrón</h3>
-            <div class="kv">
-              <div class="k">Afección mayoritaria</div><div class="v">${safeText(props?.nom_clase)}</div>
-              <div class="k">Estado de la tesela</div><div class="v">${safeText(props?.Afeccion)}</div>
-            </div>
+        <div class="card">
+          <h3>Info. Mapa Forestal (MFCAE)</h3>
+          <div class="kv">
+            <div class="k">Superficie (ha)</div><div class="v">${fmtNum(props?.sup, 2)}</div>
+            <div class="k">Especie</div><div class="v">${safeText(props?.DES_SP1)}</div>
+            <div class="k">Estado</div><div class="v">${safeText(props?.DES_E1)}</div>
+            <div class="k">Acompañante</div><div class="v">${safeText(props?.DES_SP2)}</div>
+            <div class="k">FCC (%)</div><div class="v">${fmtNum(props?.FCCARB, 2)}</div>
           </div>
         </div>
       `;
@@ -935,34 +909,11 @@
 
     // Init
     map.on('load', async () => {
-      // Slider init
-      const yearSlider = document.getElementById('yearSlider');
-      const yearLabel  = document.getElementById('yearLabel');
-
-      function yearFromIndex(i) {
-        const idx = Math.max(0, Math.min(YEARS.length - 1, Number(i)));
-        return YEARS[idx];
-      }
-
-      let activeYear = DEFAULT_YEAR;
-
-      function initYearSlider() {
-        yearSlider.min = 0;
-        yearSlider.max = String(YEARS.length - 1);
-        yearSlider.step = 1;
-        const startIdx = Math.max(0, YEARS.indexOf(DEFAULT_YEAR));
-        yearSlider.value = String(startIdx);
-        activeYear = yearFromIndex(yearSlider.value);
-        yearLabel.textContent = String(activeYear);
-      }
-
       initYearSlider();
       initLegendHandlers();
 
       addMfvSourceAndLayersForYear(DEFAULT_YEAR);
       ensureBasemapBelow();
-
-      debugPmtilesFetch(mfvPmtilesForYear(DEFAULT_YEAR));
       await autoZoomToPmtiles(DEFAULT_YEAR);
 
       map.on('mouseenter', 'mfv-fill', () => setPointerCursor(true));
@@ -995,5 +946,3 @@
   </script>
 </body>
 </html>
-
-
