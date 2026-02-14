@@ -506,13 +506,13 @@
 
     // ✅ PMTiles reales: 2018_afeccion_EPSG4326.pmtiles, etc.
     function mfvPmtilesForYear(year) {
-      return `./data/${year}_afeccion_EPSG4326.pmtiles`;
+      return `./data/${year}_afeccion_EPSG4326`;
     }
 
     // ✅ source-layer dentro del PMTiles (coincide con el nombre de la capa)
     // En tu caso, por el GeoJSON, es muy probable que sea igual: `${year}_afeccion_EPSG4326`
     function mfvSourceLayerForYear(year) {
-      return `${year}_afeccion_EPSG4326`;
+      return `mfv`;
     }
 
     const DETAIL_ZOOM = 13;
