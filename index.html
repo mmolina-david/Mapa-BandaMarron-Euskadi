@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa prueba - MapLibre</title>
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- ✅ PMTiles (para usar pmtiles:// en MapLibre) -->
+  <script src="https://unpkg.com/pmtiles@^4.0/dist/pmtiles.js"></script>
+  <!-- Nota: este patrón de CDN es el habitual para PMTiles en web. :contentReference[oaicite:0]{index=0} -->
+
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    #map { width: 100%; height: 100%; }
+
+    #uiPanel {
+      position: absolute;
+      left: 30px;
+      bottom: 30px;
+      z-index: 30;
+      font-family: sans-serif;
+      user-select: none;
+      width: 290px;
+    }
+
+    .panel-wrap {
+      position: relative;
+      background: rgba(255,255,255,0.92);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.22);
+      overflow: hidden;
+    }
+
+    .panel-section {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(0,0,0,0.10);
+      background: transparent;
+    }
+    .panel-section:last-child { border-bottom: 0; }
+
+    #panelToggle {
+      position: absolute;
+      right: -18px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 56px;
+      border-radius: 0 10px 10px 0;
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 0 10px rgba(0,0,0,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.10);
+      border-left: 0;
+      z-index: 31;
+    }
+    #panelToggle span { font-size: 14px; opacity: 0.85; line-height: 1; }
+
+    #uiPanel.collapsed { width: 0; }
+    #uiPanel.collapsed .panel-wrap {
+      width: 0;
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+    }
+    #uiPanel.collapsed .panel-content { display: none; }
+    #uiPanel.collapsed #panelToggle {
+      right: auto;
+      left: -18px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-radius: 10px 0 0 10px;
+      border-left: 1px solid rgba(0,0,0,0.10);
+      border-right: 0;
+    }
+
+    .bm-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .bm-logo {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      flex: 0 0 28px;
+    }
+
+    .bm-current {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      align-items: flex-start;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .bm-current .bm-label {
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bm-current .bm-sub {
+      font-size: 12px;
+      opacity: 0.75;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bm-caret { font-size: 14px; opacity: 0.8; }
+
+    .bm-panel {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(0,0,0,0.10);
+      background: transparent;
+    }
+    .bm-panel.open { display: block; }
+
+    .bm-title {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .bm-options {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .bm-option {
+      width: 100%;
+      text-align: left;
+      padding: 7px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(0,0,0,0.10);
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .bm-option:hover { background: rgba(0,0,0,0.04); }
+    .bm-option.active { border-color: rgba(0,0,0,0.35); font-weight: 700; }
+
+    .legend-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .legend-actions button {
+      font-size: 12px;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .legend-left { display: flex; align-items: center; gap: 8px; }
+    .legend-color {
+      width: 14px; height: 14px;
+      border: 1px solid #333;
+      border-radius: 3px;
+      flex: 0 0 14px;
+    }
+    .legend-item input[type="checkbox"] { transform: scale(1.05); cursor: pointer; }
+
+    .year-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #yearLabel {
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    #yearSlider { width: 100%; flex: 1 1 auto; }
+    .year-hint {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 6px;
+      line-height: 1.2;
+    }
+
+    #modalOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalBox {
+      width: min(520px, 92vw);
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      padding: 16px 16px 12px 16px;
+      font-family: sans-serif;
+    }
+    #modalBox h3 { margin: 0 0 8px 0; font-size: 16px; }
+    #modalBox p { margin: 0 0 12px 0; font-size: 13px; line-height: 1.4; opacity: 0.9; }
+    #modalClose {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      background: rgba(0,0,0,0.08);
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #modalClose:hover { background: rgba(0,0,0,0.12); }
+
+    .mfv-popup .maplibregl-popup-content{
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.25);
+      font-family: sans-serif;
+      min-width: 280px;
+    }
+    .mfv-popup .maplibregl-popup-close-button{
+      font-size: 18px;
+      padding: 2px 8px;
+      opacity: 0.7;
+    }
+    .mfv-pop-head{
+      display:flex;
+      align-items:center;
+      justify-content: flex-end;
+      margin: 0 0 8px 0;
+    }
+    .mfv-badge{
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(0,0,0,0.18);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      flex: 0 0 12px;
+    }
+    .mfv-pop-grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      font-size: 12.5px;
+      line-height: 1.25;
+    }
+    .mfv-row{
+      display:flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      padding-top: 8px;
+    }
+    .mfv-row:first-child{ border-top:0; padding-top:0; }
+    .mfv-k{ font-weight: 700; opacity: 0.75; white-space: nowrap; }
+    .mfv-v{ font-weight: 700; margin-left: auto; text-align:right; }
+    .mfv-row.mfv-stack{
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+    }
+    .mfv-row.mfv-stack .mfv-v{
+      text-align: right;
+      font-weight: 600;
+      opacity: 0.92;
+      white-space: normal;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <div id="modalOverlay" role="dialog" aria-modal="true">
+    <div id="modalBox">
+      <h3>Aviso</h3>
+      <p>Esta es una versión de prueba, en fase de desarrollo, los datos que aparecen no son reales.</p>
+      <button id="modalClose" type="button">Entendido</button>
+    </div>
+  </div>
+
+  <div id="uiPanel">
+    <div id="panelToggle" title="Ocultar/mostrar panel"><span id="toggleIcon">❯</span></div>
+
+    <div class="panel-wrap">
+      <div class="panel-content">
+
+        <div class="panel-section">
+          <button id="bmBtn" class="bm-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <img id="bmLogo" class="bm-logo" alt="geoEuskadi" />
+            <div class="bm-current">
+              <div id="bmYearLabel" class="bm-label">2018</div>
+              <div class="bm-sub">Ortofoto (RGB)</div>
+            </div>
+            <div class="bm-caret">▾</div>
+          </button>
+
+          <div id="bmPanel" class="bm-panel" role="listbox" aria-label="Selector de ortofoto">
+            <div class="bm-title">Fuente: Eusko Jaurlaritza / Gobierno Vasco. geoEuskadi</div>
+            <div id="bmOptions" class="bm-options"></div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div class="legend-title">
+            <span>Nivel de afección</span>
+            <span class="legend-actions">
+              <button id="allBtn" type="button">Todas</button>
+              <button id="noneBtn" type="button">Ninguna</button>
+            </span>
+          </div>
+
+          <label class="legend-item">
+            <span class="legend-left">
+              <span class="legend-color" style="background:#bdbdbd;"></span>
+              <span>Sin datos</span>
+            </span>
+            <input type="checkbox" class="class-toggle" value="-1" checked />
+          </label>
+
+          <label class="legend-item">
+            <span class="legend-left">
+              <span class="legend-color" style="background:#a6d96a;"></span>
+              <span>Sano (0%)</span>
+            </span>
+            <input type="checkbox" class="class-toggle" value="0" checked />
+          </label>
+
+          <label class="legend-item">
+            <span class="legend-left">
+              <span class="legend-color" style="background:#ffffc0;"></span>
+              <span>Leve (&lt;20%)</span>
+            </span>
+            <input type="checkbox" class="class-toggle" value="1" checked />
+          </label>
+
+          <label class="legend-item">
+            <span class="legend-left">
+              <span class="legend-color" style="background:#fdae61;"></span>
+              <span>Moderado (20-60%)</span>
+            </span>
+            <input type="checkbox" class="class-toggle" value="2" checked />
+          </label>
+
+          <label class="legend-item" style="margin-bottom:0;">
+            <span class="legend-left">
+              <span class="legend-color" style="background:#d7191c;"></span>
+              <span>Grave (&gt;60%)</span>
+            </span>
+            <input type="checkbox" class="class-toggle" value="3" checked />
+          </label>
+        </div>
+
+        <div class="panel-section">
+          <div class="year-row">
+            <div id="yearLabel">2018</div>
+            <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
+          </div>
+          <div class="year-hint">Año MFV (carga &lt;AÑO&gt;_afeccion_EPSG4326.pmtiles)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LOGO_URL = './data/geoeuskadi.png';
+
+    // ✅ Prepárate para añadir más PMTiles por año (de momento solo tienes 2018)
+    const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+    const DEFAULT_YEAR = 2018;
+
+    // ✅ Patrón recomendado de nombres (renombra tu 2018.pmtiles a esto, o cambia esta función)
+    function mfvPmtilesForYear(year) {
+      return `./data/${year}.pmtiles`;
+    }
+
+    // ✅ IMPORTANTE: “source-layer” debe coincidir con el nombre de capa dentro del PMTiles.
+    // Tippecanoe lo controla con: tippecanoe ... -l mfv
+    function mfvSourceLayerForYear(year) {
+  return `${year}_afeccion_EPSG4326`;
+}
+
+    const DETAIL_ZOOM = 13;
+
+    const CLASS_COLORS = {
+      '-1': '#bdbdbd',
+      0: '#a6d96a',
+      1: '#ffffc0',
+      2: '#fdae61',
+      3: '#d7191c'
+    };
+
+    const ORTO_YEARS = [
+      2024, 2023, 2022, 2021, 2020, 2019, 2018,
+      2017, 2016, 2015, 2014, 2013, 2012, 2011,
+      2010, 2009, 2008, 2007, 2006, 2005, 2004,
+      2002, 2001, 1995, 1991, 1989, 1984
+    ];
+
+    function wmsTileUrlForYear(year) {
+      return "https://www.geo.euskadi.eus/WMS_ORTOARGAZKIAK" +
+        "?service=WMS&request=GetMap&version=1.3.0" +
+        "&layers=ORTO_" + year +
+        "&styles=default" +
+        "&format=image/png" +
+        "&transparent=false" +
+        "&CRS=EPSG:3857" +
+        "&BBOX={bbox-epsg-3857}" +
+        "&WIDTH=256&HEIGHT=256";
+    }
+
+    // Campo fijo: "clase"
+    function activeField() { return 'clase'; }
+
+    function colorExprForClase() {
+      return [
+        'match',
+        ['to-number', ['get', activeField()]],
+        -1, CLASS_COLORS['-1'],
+        0, CLASS_COLORS[0],
+        1, CLASS_COLORS[1],
+        2, CLASS_COLORS[2],
+        3, CLASS_COLORS[3],
+        CLASS_COLORS['-1'] // fallback -> gris
+      ];
+    }
+
+    function fillOpacityExpr() {
+      return [
+        'interpolate', ['linear'], ['zoom'],
+        0, 0.70,
+        DETAIL_ZOOM - 0.1, 0.70,
+        DETAIL_ZOOM, 0.00,
+        22, 0.00
+      ];
+    }
+
+    function lineWidthExpr() {
+      return [
+        'interpolate', ['linear'], ['zoom'],
+        6, 0.4,
+        10, 0.8,
+        DETAIL_ZOOM, 1.2,
+        16, 1.8
+      ];
+    }
+
+    function formatNumberSpace(n, digits = 2) {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '—';
+      const s = new Intl.NumberFormat('es-ES', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: digits
+      }).format(num);
+      return s.replace(/\./g, ' ');
+    }
+
+    // ✅ PMTiles Protocol -> habilita pmtiles://
+    const pmtilesProtocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: 'raster',
+            tiles: [ wmsTileUrlForYear(DEFAULT_YEAR) ],
+            tileSize: 256
+          }
+        },
+        layers: [
+          { id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }
+        ]
+      },
+      center: [0, 0],
+      zoom: 2
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
+
+    // Modal
+    const modalOverlay = document.getElementById('modalOverlay');
+    document.getElementById('modalClose').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modalOverlay.style.display = 'none'; });
+
+    // Toggle panel
+    const uiPanel = document.getElementById('uiPanel');
+    const panelToggle = document.getElementById('panelToggle');
+    const toggleIcon = document.getElementById('toggleIcon');
+
+    function setPanelOpen(open) {
+      if (open) {
+        uiPanel.classList.remove('collapsed');
+        toggleIcon.textContent = '❯';
+      } else {
+        uiPanel.classList.add('collapsed');
+        toggleIcon.textContent = '❮';
+      }
+    }
+    panelToggle.addEventListener('click', (e) => { e.stopPropagation(); setPanelOpen(uiPanel.classList.contains('collapsed')); });
+    setPanelOpen(true);
+
+    // WMS selector
+    const bmBtn = document.getElementById('bmBtn');
+    const bmPanel = document.getElementById('bmPanel');
+    const bmOptions = document.getElementById('bmOptions');
+    const bmYearLabel = document.getElementById('bmYearLabel');
+    const bmLogo = document.getElementById('bmLogo');
+    bmLogo.src = LOGO_URL;
+
+    let selectedOrtoYear = DEFAULT_YEAR;
+    bmYearLabel.textContent = String(selectedOrtoYear);
+
+    function updateBasemapUI(year) {
+      bmYearLabel.textContent = String(year);
+      Array.from(bmOptions.querySelectorAll('.bm-option')).forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.year) === year);
+      });
+    }
+
+    function ensureBasemapBelow() {
+      if (map.getLayer('satellite') && map.getLayer('mfv-fill')) {
+        try { map.moveLayer('satellite', 'mfv-fill'); } catch (_) {}
+      }
+    }
+
+    function setBasemapYear(year) {
+      selectedOrtoYear = year;
+      updateBasemapUI(year);
+
+      const tiles = [ wmsTileUrlForYear(year) ];
+      const src = map.getSource('satellite');
+
+      if (src && typeof src.setTiles === 'function') {
+        src.setTiles(tiles);
+        ensureBasemapBelow();
+        return;
+      }
+
+      if (map.getLayer('satellite')) map.removeLayer('satellite');
+      if (map.getSource('satellite')) map.removeSource('satellite');
+
+      map.addSource('satellite', { type: 'raster', tiles, tileSize: 256 });
+
+      if (map.getLayer('mfv-fill')) {
+        map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }, 'mfv-fill');
+      } else {
+        map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' });
+      }
+    }
+
+    function renderBasemapOptions() {
+      bmOptions.innerHTML = '';
+      ORTO_YEARS.forEach(y => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bm-option' + (y === selectedOrtoYear ? ' active' : '');
+        btn.textContent = String(y);
+        btn.dataset.year = String(y);
+        btn.addEventListener('click', () => { setBasemapYear(y); closeBasemapPanel(); });
+        bmOptions.appendChild(btn);
+      });
+    }
+
+    function openBasemapPanel() { bmPanel.classList.add('open'); bmBtn.setAttribute('aria-expanded', 'true'); }
+    function closeBasemapPanel() { bmPanel.classList.remove('open'); bmBtn.setAttribute('aria-expanded', 'false'); }
+    function toggleBasemapPanel() { bmPanel.classList.contains('open') ? closeBasemapPanel() : openBasemapPanel(); }
+
+    bmBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleBasemapPanel(); });
+    document.addEventListener('click', () => closeBasemapPanel());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBasemapPanel(); });
+
+    renderBasemapOptions();
+    updateBasemapUI(DEFAULT_YEAR);
+
+    // Slider años
+    const yearSlider = document.getElementById('yearSlider');
+    const yearLabel  = document.getElementById('yearLabel');
+
+    function yearFromIndex(i) {
+      const idx = Math.max(0, Math.min(YEARS.length - 1, Number(i)));
+      return YEARS[idx];
+    }
+
+    let activeYear = DEFAULT_YEAR;
+
+    function initYearSlider() {
+      yearSlider.min = 0;
+      yearSlider.max = String(YEARS.length - 1);
+      yearSlider.step = 1;
+      const startIdx = Math.max(0, YEARS.indexOf(DEFAULT_YEAR));
+      yearSlider.value = String(startIdx);
+      activeYear = yearFromIndex(yearSlider.value);
+      yearLabel.textContent = String(activeYear);
+    }
+
+    // Leyenda filtros
+    function selectedClasses() {
+      const toggles = Array.from(document.querySelectorAll('.class-toggle'));
+      return toggles.filter(cb => cb.checked).map(cb => Number(cb.value));
+    }
+
+    function applyClassFilter() {
+      const selected = selectedClasses();
+      const hide = (selected.length === 0);
+      const filter = hide ? null : ['in', ['to-number', ['get', activeField()]], ['literal', selected]];
+
+      ['mfv-fill','mfv-line'].forEach(layerId => {
+        if (!map.getLayer(layerId)) return;
+        if (hide) {
+          map.setLayoutProperty(layerId, 'visibility', 'none');
+        } else {
+          map.setLayoutProperty(layerId, 'visibility', 'visible');
+          map.setFilter(layerId, filter);
+        }
+      });
+    }
+
+    function applyStyle() {
+      if (map.getLayer('mfv-fill')) map.setPaintProperty('mfv-fill', 'fill-color', colorExprForClase());
+      if (map.getLayer('mfv-line')) map.setPaintProperty('mfv-line', 'line-color', colorExprForClase());
+      applyClassFilter();
+      ensureBasemapBelow();
+    }
+
+    function initLegendHandlers() {
+      const toggles = Array.from(document.querySelectorAll('.class-toggle'));
+      const allBtn = document.getElementById('allBtn');
+      const noneBtn = document.getElementById('noneBtn');
+
+      toggles.forEach(cb => cb.addEventListener('change', applyClassFilter));
+      allBtn.addEventListener('click', () => { toggles.forEach(cb => cb.checked = true); applyClassFilter(); });
+      noneBtn.addEventListener('click', () => { toggles.forEach(cb => cb.checked = false); applyClassFilter(); });
+    }
+
+    // Popup
+    let mfvPopup = null;
+
+    function colorForClass(cls) {
+      const key = String(cls);
+      return (key in CLASS_COLORS) ? CLASS_COLORS[key] : CLASS_COLORS['-1'];
+    }
+
+    function popupHTML(props) {
+      const sup = formatNumberSpace(props?.sup, 2);
+      const cls = Number(props?.[activeField()]);
+      const badgeColor = colorForClass(cls);
+
+      const Afeccion = (Number.isFinite(cls) && cls === -1)
+        ? 'Sin datos disponibles'
+        : (props?.Afeccion ?? '—');
+
+      return `
+        <div class="mfv-pop-head">
+          <div class="mfv-badge" style="background:${badgeColor};"></div>
+        </div>
+        <div class="mfv-pop-grid">
+          <div class="mfv-row">
+            <div class="mfv-k">Superficie (ha):</div>
+            <div class="mfv-v">${sup}</div>
+          </div>
+          <div class="mfv-row mfv-stack">
+            <div class="mfv-k">Afección:</div>
+            <div class="mfv-v">${Afeccion}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function closeMfvPopup() { if (mfvPopup) { mfvPopup.remove(); mfvPopup = null; } }
+
+    function openMfvPopup(lngLat, feature) {
+      closeMfvPopup();
+      mfvPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '360px', offset: 10 })
+        .setLngLat(lngLat)
+        .setHTML(popupHTML(feature.properties || {}))
+        .addTo(map);
+      try { mfvPopup.getElement().classList.add('mfv-popup'); } catch (_) {}
+    }
+
+    function setPointerCursor(on) { map.getCanvas().style.cursor = on ? 'pointer' : ''; }
+
+    // ✅ (PMTiles) Cambiar año = cambiar SOURCE (vector) y volver a crear capas
+    function removeMfvLayersAndSource() {
+      closeMfvPopup();
+
+      // capas
+      ['mfv-fill','mfv-line'].forEach(id => {
+        if (map.getLayer(id)) map.removeLayer(id);
+      });
+
+      // source
+      if (map.getSource('mfv')) map.removeSource('mfv');
+    }
+
+    function addMfvSourceAndLayersForYear(year) {
+      const pmtilesPath = mfvPmtilesForYear(year);
+
+      map.addSource('mfv', {
+        type: 'vector',
+        url: `pmtiles://${pmtilesPath}`
+      });
+
+      map.addLayer({
+        id: 'mfv-fill',
+        type: 'fill',
+        source: 'mfv',
+        'source-layer': mfvSourceLayerForYear(activeYear),
+        paint: {
+          'fill-color': colorExprForClase(),
+          'fill-opacity': fillOpacityExpr()
+        }
+      });
+
+      map.addLayer({
+        id: 'mfv-line',
+        type: 'line',
+        source: 'mfv',
+        'source-layer': MFV_SOURCE_LAYER,
+        paint: {
+          'line-color': colorExprForClase(),
+          'line-width': lineWidthExpr(),
+          'line-opacity': 0.95
+        }
+      });
+
+      applyStyle();
+    }
+
+    async function loadMfvYear(year, fit = false) {
+      removeMfvLayersAndSource();
+      addMfvSourceAndLayersForYear(year);
+
+      // esperar a que estén los tiles listos antes de interactuar
+      await new Promise(resolve => map.once('idle', resolve));
+
+      if (fit) {
+        // Si quieres “fit”, lo más fiable sin leer el PMTiles es fijarlo manualmente.
+        // Si lo necesitas, lo hacemos en el siguiente paso (guardando bounds por año).
+      }
+    }
+
+    map.on('load', async () => {
+      initYearSlider();
+      initLegendHandlers();
+
+      // Primera carga (PMTiles)
+      addMfvSourceAndLayersForYear(DEFAULT_YEAR);
+      ensureBasemapBelow();
+
+      // Cursor + click popup
+      map.on('mouseenter', 'mfv-fill', () => setPointerCursor(true));
+      map.on('mouseleave', 'mfv-fill', () => setPointerCursor(false));
+      map.on('mouseenter', 'mfv-line', () => setPointerCursor(true));
+      map.on('mouseleave', 'mfv-line', () => setPointerCursor(false));
+
+      map.on('click', (e) => {
+        const feats = map.queryRenderedFeatures(e.point, { layers: ['mfv-fill', 'mfv-line'] });
+        if (!feats || feats.length === 0) return;
+        const f = feats.find(x => x.layer && x.layer.id === 'mfv-fill') || feats[0];
+        openMfvPopup(e.lngLat, f);
+      });
+
+      // (Opcional) espera primera carga para que el usuario no cliquee “a medias”
+      await new Promise(resolve => map.once('idle', resolve));
+
+      // Slider -> recarga PMTiles por año
+      yearSlider.addEventListener('input', async () => {
+        activeYear = yearFromIndex(yearSlider.value);
+        yearLabel.textContent = String(activeYear);
+
+        await loadMfvYear(activeYear, false);
+
+        if (ORTO_YEARS.includes(activeYear)) {
+          setBasemapYear(activeYear);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
