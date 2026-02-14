@@ -243,6 +243,7 @@
     }
     #modalClose:hover { background: rgba(0,0,0,0.12); }
 
+    /* popup base */
     .mfv-popup .maplibregl-popup-content{
       border-radius: 12px;
       padding: 10px;
@@ -254,49 +255,6 @@
       font-size: 18px;
       padding: 2px 8px;
       opacity: 0.7;
-    }
-    .mfv-pop-head{
-      display:flex;
-      align-items:center;
-      justify-content: flex-end;
-      margin: 0 0 8px 0;
-    }
-    .mfv-badge{
-      width: 12px;
-      height: 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(0,0,0,0.18);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-      flex: 0 0 12px;
-    }
-    .mfv-pop-grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      font-size: 12.5px;
-      line-height: 1.25;
-    }
-    .mfv-row{
-      display:flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 12px;
-      border-top: 1px solid rgba(0,0,0,0.08);
-      padding-top: 8px;
-    }
-    .mfv-row:first-child{ border-top:0; padding-top:0; }
-    .mfv-k{ font-weight: 700; opacity: 0.75; white-space: nowrap; }
-    .mfv-v{ font-weight: 700; margin-left: auto; text-align:right; }
-    .mfv-row.mfv-stack{
-      flex-direction: column;
-      align-items: stretch;
-      gap: 6px;
-    }
-    .mfv-row.mfv-stack .mfv-v{
-      text-align: right;
-      font-weight: 600;
-      opacity: 0.92;
-      white-space: normal;
     }
 
     /* ==========================================================
@@ -324,17 +282,14 @@
       border-color: rgba(0,0,0,0.20);
       opacity: 1;
     }
-
     .tab-panel { padding: 0; }
     .tab-panel[hidden] { display: none; }
 
-    /* Cards del click */
     .click-tab {
       display: grid;
       gap: 10px;
       padding: 10px 12px 12px 12px;
     }
-
     .card {
       border: 1px solid rgba(0,0,0,0.12);
       border-radius: 10px;
@@ -362,7 +317,6 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
-
     .empty-click {
       border: 1px dashed rgba(0,0,0,0.18);
       background: rgba(0,0,0,0.02);
@@ -403,6 +357,7 @@
           <button id="tab-click" class="tab-btn" role="tab" aria-controls="panel-click" aria-selected="false" type="button">Al pinchar</button>
         </div>
 
+        <!-- ===== Panel CONTROLES ===== -->
         <div id="panel-controls" class="tab-panel" role="tabpanel" aria-labelledby="tab-controls">
 
           <div class="panel-section">
@@ -481,6 +436,7 @@
 
         </div>
 
+        <!-- ===== Panel AL PINCHAR ===== -->
         <div id="panel-click" class="tab-panel" role="tabpanel" aria-labelledby="tab-click" hidden>
           <div id="clickTabContent" class="click-tab">
             <div class="empty-click">
@@ -501,16 +457,15 @@
     const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
     const DEFAULT_YEAR = 2018;
 
-    // ✅ Archivo: 2018_afeccion_EPSG4326  (si tiene extensión .pmtiles, añádela aquí)
+    // ✅ PMTiles generados por tu script: base.geojson -> base.pmtiles
+    // Ejemplo: 2018_afeccion_EPSG4326.geojson -> 2018_afeccion_EPSG4326.pmtiles
     function mfvPmtilesForYear(year) {
-      return `./data/${year}_afeccion_EPSG4326`;
-      // Si tu archivo es .pmtiles:
-      // return `./data/${year}_afeccion_EPSG4326.pmtiles`;
+      return `./data/${year}_afeccion_EPSG4326.pmtiles`;
     }
 
-    // ✅ Confirmado por ti: source-layer = mfv
+    // ✅ tippecanoe -l mfv  => source-layer interno del PMTiles es "mfv"
     function mfvSourceLayerForYear(year) {
-      return `mfv`;
+      return 'mfv';
     }
 
     const DETAIL_ZOOM = 13;
@@ -542,13 +497,22 @@
         "&WIDTH=256&HEIGHT=256";
     }
 
-    // Campo fijo: "clase"
-    function activeField() { return 'clase'; }
+    // ==========================================================
+    // ✅ CLAVE: normalizar clase (3.0 -> 3) para color y filtros
+    // ==========================================================
+    function claseIntExpr() {
+      // Si no es número, -1
+      return ['case',
+        ['all', ['has', 'clase'], ['!=', ['get', 'clase'], null]],
+        ['to-number', ['round', ['to-number', ['get', 'clase']]]],
+        -1
+      ];
+    }
 
     function colorExprForClase() {
       return [
         'match',
-        ['to-number', ['get', activeField()]],
+        claseIntExpr(),
         -1, CLASS_COLORS['-1'],
         0, CLASS_COLORS[0],
         1, CLASS_COLORS[1],
@@ -558,11 +522,8 @@
       ];
     }
 
-    // ✅ IMPORTANTE: para evitar “parece que no carga” al auto-zoom,
-    // dejamos el fill visible siempre (tu versión lo ponía a 0 a zoom>=13).
-    function fillOpacityExpr() {
-      return 0.65;
-    }
+    // ✅ Para depurar, dejamos fill siempre visible (evita “parece que no carga”)
+    function fillOpacityExpr() { return 0.65; }
 
     function lineWidthExpr() {
       return [
@@ -589,9 +550,9 @@
     const pmtilesProtocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
 
-    // ✅ Aviso: si estás en file:// PMTiles suele fallar (Range/slice)
+    // PMTiles necesita HTTP Range (si abres con file:// suele fallar)
     if (location.protocol === 'file:') {
-      console.warn('⚠️ Estás en file://. Sirve por http:// (python -m http.server / Live Server) para PMTiles.');
+      console.warn('⚠️ Estás en file://. Usa http:// (Live Server o: python -m http.server).');
     }
 
     const map = new maplibregl.Map({
@@ -616,11 +577,9 @@
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
 
-    // ==========================================================
-    // ✅ DEBUG + AUTO-ZOOM (bounds del PMTiles)
-    // ==========================================================
     map.on('error', (e) => console.warn('🧨 MapLibre error:', e?.error || e));
 
+    // ✅ Debug: confirma Range (debería ser status 206 + Content-Range)
     async function debugPmtilesFetch(path) {
       try {
         const res = await fetch(path, { headers: { Range: 'bytes=0-255' } });
@@ -632,33 +591,28 @@
       }
     }
 
+    // ✅ Auto-zoom leyendo el header del PMTiles
     let didAutoZoom = false;
     async function autoZoomToPmtiles(year) {
       if (didAutoZoom) return;
       const pmtilesPath = mfvPmtilesForYear(year);
-
       try {
         const p = new pmtiles.PMTiles(pmtilesPath);
         const h = await p.getHeader();
-
         if (![h?.minLon, h?.minLat, h?.maxLon, h?.maxLat].every(Number.isFinite)) {
           console.warn('⚠️ Header PMTiles sin bounds válidos:', h);
           return;
         }
-
         const bounds = [[h.minLon, h.minLat], [h.maxLon, h.maxLat]];
         map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 12.8 });
         didAutoZoom = true;
-
         console.log('✅ Auto-zoom a bounds PMTiles:', bounds);
       } catch (e) {
         console.warn('🧨 No pude leer header PMTiles (Range/file://):', e);
       }
     }
 
-    // ==========================================================
     // Modal
-    // ==========================================================
     const modalOverlay = document.getElementById('modalOverlay');
     document.getElementById('modalClose').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
@@ -670,18 +624,13 @@
     const toggleIcon = document.getElementById('toggleIcon');
 
     function setPanelOpen(open) {
-      if (open) {
-        uiPanel.classList.remove('collapsed');
-        toggleIcon.textContent = '❯';
-      } else {
-        uiPanel.classList.add('collapsed');
-        toggleIcon.textContent = '❮';
-      }
+      if (open) { uiPanel.classList.remove('collapsed'); toggleIcon.textContent = '❯'; }
+      else { uiPanel.classList.add('collapsed'); toggleIcon.textContent = '❮'; }
     }
     panelToggle.addEventListener('click', (e) => { e.stopPropagation(); setPanelOpen(uiPanel.classList.contains('collapsed')); });
     setPanelOpen(true);
 
-    // Tabs del panel
+    // Tabs
     const tabControlsBtn = document.getElementById('tab-controls');
     const tabClickBtn    = document.getElementById('tab-click');
     const panelControls  = document.getElementById('panel-controls');
@@ -694,11 +643,10 @@
       panelControls.hidden = !isControls;
       panelClick.hidden = isControls;
     }
-
     tabControlsBtn.addEventListener('click', () => selectPanelTab('controls'));
     tabClickBtn.addEventListener('click', () => selectPanelTab('click'));
 
-    // WMS selector
+    // Basemap selector
     const bmBtn = document.getElementById('bmBtn');
     const bmPanel = document.getElementById('bmPanel');
     const bmOptions = document.getElementById('bmOptions');
@@ -771,7 +719,7 @@
     renderBasemapOptions();
     updateBasemapUI(DEFAULT_YEAR);
 
-    // Slider años
+    // Slider
     const yearSlider = document.getElementById('yearSlider');
     const yearLabel  = document.getElementById('yearLabel');
 
@@ -792,7 +740,7 @@
       yearLabel.textContent = String(activeYear);
     }
 
-    // Leyenda filtros
+    // Filtros
     function selectedClasses() {
       const toggles = Array.from(document.querySelectorAll('.class-toggle'));
       return toggles.filter(cb => cb.checked).map(cb => Number(cb.value));
@@ -801,13 +749,13 @@
     function applyClassFilter() {
       const selected = selectedClasses();
       const hide = (selected.length === 0);
-      const filter = hide ? null : ['in', ['to-number', ['get', activeField()]], ['literal', selected]];
+      // ✅ usa la expresión normalizada a entero
+      const filter = hide ? null : ['in', claseIntExpr(), ['literal', selected]];
 
       ['mfv-fill','mfv-line'].forEach(layerId => {
         if (!map.getLayer(layerId)) return;
-        if (hide) {
-          map.setLayoutProperty(layerId, 'visibility', 'none');
-        } else {
+        if (hide) map.setLayoutProperty(layerId, 'visibility', 'none');
+        else {
           map.setLayoutProperty(layerId, 'visibility', 'visible');
           map.setFilter(layerId, filter);
         }
@@ -834,32 +782,30 @@
     // Popup
     let mfvPopup = null;
 
-    function colorForClass(cls) {
-      const key = String(cls);
-      return (key in CLASS_COLORS) ? CLASS_COLORS[key] : CLASS_COLORS['-1'];
-    }
-
     function popupHTML(props) {
       const sup = formatNumberSpace(props?.sup, 2);
-      const cls = Number(props?.[activeField()]);
-      const badgeColor = colorForClass(cls);
+
+      // ✅ normaliza clase para el badge
+      const rawCls = Number(props?.clase);
+      const cls = Number.isFinite(rawCls) ? Math.round(rawCls) : -1;
+      const badgeColor = (String(cls) in CLASS_COLORS) ? CLASS_COLORS[String(cls)] : CLASS_COLORS['-1'];
 
       const Afeccion = (Number.isFinite(cls) && cls === -1)
         ? 'Sin datos disponibles'
         : (props?.Afeccion ?? '—');
 
       return `
-        <div class="mfv-pop-head">
-          <div class="mfv-badge" style="background:${badgeColor};"></div>
+        <div style="display:flex;justify-content:flex-end;margin:0 0 8px 0;">
+          <div style="width:12px;height:12px;border-radius:4px;border:1px solid rgba(0,0,0,0.18);background:${badgeColor};"></div>
         </div>
-        <div class="mfv-pop-grid">
-          <div class="mfv-row">
-            <div class="mfv-k">Superficie (ha):</div>
-            <div class="mfv-v">${sup}</div>
+        <div style="display:grid;gap:8px;font-size:12.5px;line-height:1.25;">
+          <div style="display:flex;justify-content:space-between;gap:12px;border-top:0;padding-top:0;">
+            <div style="font-weight:700;opacity:.75;">Superficie (ha):</div>
+            <div style="font-weight:700;text-align:right;">${sup}</div>
           </div>
-          <div class="mfv-row mfv-stack">
-            <div class="mfv-k">Afección:</div>
-            <div class="mfv-v">${Afeccion}</div>
+          <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(0,0,0,0.08);padding-top:8px;">
+            <div style="font-weight:700;opacity:.75;">Afección:</div>
+            <div style="text-align:right;font-weight:600;opacity:.92;">${Afeccion}</div>
           </div>
         </div>
       `;
@@ -878,12 +824,10 @@
 
     function setPointerCursor(on) { map.getCanvas().style.cursor = on ? 'pointer' : ''; }
 
-    // (PMTiles) capas/source
+    // PMTiles layers/source
     function removeMfvLayersAndSource() {
       closeMfvPopup();
-      ['mfv-fill','mfv-line'].forEach(id => {
-        if (map.getLayer(id)) map.removeLayer(id);
-      });
+      ['mfv-fill','mfv-line'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
       if (map.getSource('mfv')) map.removeSource('mfv');
     }
 
@@ -891,10 +835,7 @@
       const pmtilesPath = mfvPmtilesForYear(year);
       const sourceLayer = mfvSourceLayerForYear(year);
 
-      map.addSource('mfv', {
-        type: 'vector',
-        url: `pmtiles://${pmtilesPath}`
-      });
+      map.addSource('mfv', { type: 'vector', url: `pmtiles://${pmtilesPath}` });
 
       map.addLayer({
         id: 'mfv-fill',
@@ -928,14 +869,13 @@
       await new Promise(resolve => map.once('idle', resolve));
     }
 
-    // Pestaña "Al pinchar"
+    // Tab "Al pinchar"
     const clickTabContent = document.getElementById('clickTabContent');
 
     function safeText(v) {
       if (v === null || v === undefined || v === '') return 'sin datos';
       return String(v);
     }
-
     function fmtNum(v, decimals = 2) {
       const n = Number(v);
       if (!Number.isFinite(n)) return 'sin datos';
@@ -985,7 +925,7 @@
       addMfvSourceAndLayersForYear(DEFAULT_YEAR);
       ensureBasemapBelow();
 
-      // ✅ DEBUG (Range/archivo) + AUTO-ZOOM
+      // ✅ debug + autozoom
       debugPmtilesFetch(mfvPmtilesForYear(DEFAULT_YEAR));
       await autoZoomToPmtiles(DEFAULT_YEAR);
 
@@ -999,7 +939,6 @@
         if (!feats || feats.length === 0) return;
 
         const f = feats.find(x => x.layer && x.layer.id === 'mfv-fill') || feats[0];
-
         openMfvPopup(e.lngLat, f);
 
         const props = f.properties || {};
@@ -1008,17 +947,13 @@
         selectPanelTab('click');
       });
 
-      await new Promise(resolve => map.once('idle', resolve));
-
       yearSlider.addEventListener('input', async () => {
         activeYear = yearFromIndex(yearSlider.value);
         yearLabel.textContent = String(activeYear);
 
         await loadMfvYear(activeYear);
 
-        if (ORTO_YEARS.includes(activeYear)) {
-          setBasemapYear(activeYear);
-        }
+        if (ORTO_YEARS.includes(activeYear)) setBasemapYear(activeYear);
       });
     });
   </script>
