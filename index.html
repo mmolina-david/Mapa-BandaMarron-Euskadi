@@ -300,7 +300,7 @@
     }
 
     /* ==========================================================
-       ✅ Tabs dentro del panel + cards "Al pinchar"
+       Tabs dentro del panel + cards "Al pinchar"
        ========================================================== */
     .tabs {
       display: grid;
@@ -387,7 +387,7 @@
   <div id="modalOverlay" role="dialog" aria-modal="true">
     <div id="modalBox">
       <h3>Aviso</h3>
-      <p>Esta es una versión de prueba, en fase de desarrollo, los datos que aparecen no son reales.</p>
+      <p>Este visor ha sido desarrollado para exponer los resultados de un TFG.</p>
       <button id="modalClose" type="button">Entendido</button>
     </div>
   </div>
@@ -500,19 +500,20 @@
   <script>
     const LOGO_URL = './data/geoeuskadi.png';
 
-    // ✅ Prepárate para añadir más PMTiles por año
+    // ✅ Años disponibles
     const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
     const DEFAULT_YEAR = 2018;
 
-    // ✅ Patrón de nombres
+    // ✅ PMTiles reales: 2018_afeccion_EPSG4326.pmtiles, etc.
     function mfvPmtilesForYear(year) {
-      return `./data/${year}.pmtiles`;
+      return `./data/${year}_afeccion_EPSG4326.pmtiles`;
     }
 
-    // ✅ source-layer dentro del PMTiles (típico si se generó con tippecanoe -l mfv)
+    // ✅ source-layer dentro del PMTiles (coincide con el nombre de la capa)
+    // En tu caso, por el GeoJSON, es muy probable que sea igual: `${year}_afeccion_EPSG4326`
     function mfvSourceLayerForYear(year) {
-  return `${year}_afeccion_EPSG4326`;
-}
+      return `${year}_afeccion_EPSG4326`;
+    }
 
     const DETAIL_ZOOM = 13;
 
@@ -543,7 +544,6 @@
         "&WIDTH=256&HEIGHT=256";
     }
 
-    // Campo fijo: "clase"
     function activeField() { return 'clase'; }
 
     function colorExprForClase() {
@@ -590,13 +590,13 @@
       return s.replace(/\./g, ' ');
     }
 
-    // ✅ PMTiles Protocol -> habilita pmtiles://
+    // ✅ PMTiles Protocol
     const pmtilesProtocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
 
-    // ✅ Aviso: PMTiles normalmente necesita http(s) con Range requests (file:// suele fallar)
+    // ✅ Aviso: PMTiles necesita http(s) con Range (file:// suele fallar y da errores tipo "slice")
     if (location.protocol === 'file:') {
-      console.warn('⚠️ Estás abriendo con file://. Sirve la carpeta por http:// (ej: python -m http.server) para PMTiles.');
+      console.warn('⚠️ Estás en file://. Sirve la carpeta por http:// (python -m http.server / Live Server) para PMTiles.');
     }
 
     const map = new maplibregl.Map({
@@ -614,7 +614,7 @@
           { id: 'satellite', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 24 }
         ]
       },
-      // ✅ Inicio razonable; de todas formas haremos AUTO-ZOOM al PMTiles al abrir
+      // valor inicial; el auto-zoom ajusta al cargar PMTiles
       center: [-2.7, 43.1],
       zoom: 7
     });
@@ -628,12 +628,12 @@
     let didAutoZoom = false;
 
     async function autoZoomToPmtiles(year) {
-      if (didAutoZoom) return; // ✅ solo al abrir (si quieres por año, quita esta línea)
+      if (didAutoZoom) return; // solo al abrir
       const pmtilesPath = mfvPmtilesForYear(year);
 
       try {
         const p = new pmtiles.PMTiles(pmtilesPath);
-        const h = await p.getHeader(); // {minLon,minLat,maxLon,maxLat,...}
+        const h = await p.getHeader(); // minLon/minLat/maxLon/maxLat
 
         if (![h?.minLon, h?.minLat, h?.maxLon, h?.maxLat].every(Number.isFinite)) {
           console.warn('⚠️ Header PMTiles sin bounds válidos:', h);
@@ -646,13 +646,11 @@
 
         console.log('✅ Auto-zoom a bounds PMTiles:', bounds);
       } catch (e) {
-        console.warn('🧨 No pude leer el header del PMTiles (típico si estás en file:// o sin Range):', e);
+        console.warn('🧨 No pude leer header PMTiles (típico si estás en file:// o sin Range):', e);
       }
     }
 
-    // ==========================================================
     // Modal
-    // ==========================================================
     const modalOverlay = document.getElementById('modalOverlay');
     document.getElementById('modalClose').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
@@ -675,9 +673,7 @@
     panelToggle.addEventListener('click', (e) => { e.stopPropagation(); setPanelOpen(uiPanel.classList.contains('collapsed')); });
     setPanelOpen(true);
 
-    // ==========================================================
     // Tabs del panel (Controles / Al pinchar)
-    // ==========================================================
     const tabControlsBtn = document.getElementById('tab-controls');
     const tabClickBtn    = document.getElementById('tab-click');
     const panelControls  = document.getElementById('panel-controls');
@@ -694,9 +690,7 @@
     tabControlsBtn.addEventListener('click', () => selectPanelTab('controls'));
     tabClickBtn.addEventListener('click', () => selectPanelTab('click'));
 
-    // ==========================================================
     // WMS selector
-    // ==========================================================
     const bmBtn = document.getElementById('bmBtn');
     const bmPanel = document.getElementById('bmPanel');
     const bmOptions = document.getElementById('bmOptions');
@@ -769,9 +763,7 @@
     renderBasemapOptions();
     updateBasemapUI(DEFAULT_YEAR);
 
-    // ==========================================================
     // Slider años
-    // ==========================================================
     const yearSlider = document.getElementById('yearSlider');
     const yearLabel  = document.getElementById('yearLabel');
 
@@ -792,9 +784,7 @@
       yearLabel.textContent = String(activeYear);
     }
 
-    // ==========================================================
     // Leyenda filtros
-    // ==========================================================
     function selectedClasses() {
       const toggles = Array.from(document.querySelectorAll('.class-toggle'));
       return toggles.filter(cb => cb.checked).map(cb => Number(cb.value));
@@ -833,9 +823,7 @@
       noneBtn.addEventListener('click', () => { toggles.forEach(cb => cb.checked = false); applyClassFilter(); });
     }
 
-    // ==========================================================
-    // Popup (el tuyo)
-    // ==========================================================
+    // Popup
     let mfvPopup = null;
 
     function colorForClass(cls) {
@@ -882,9 +870,7 @@
 
     function setPointerCursor(on) { map.getCanvas().style.cursor = on ? 'pointer' : ''; }
 
-    // ==========================================================
-    // PMTiles: cargar/quitar capas
-    // ==========================================================
+    // (PMTiles) Cambiar año = cambiar SOURCE (vector) y volver a crear capas
     function removeMfvLayersAndSource() {
       closeMfvPopup();
 
@@ -936,13 +922,11 @@
 
       await new Promise(resolve => map.once('idle', resolve));
 
-      // Si quisieras auto-zoom al cambiar de año:
+      // Si quieres auto-zoom al cambiar año:
       // if (fit) await autoZoomToPmtiles(year);
     }
 
-    // ==========================================================
-    // Pestaña "Al pinchar" (cuadritos)
-    // ==========================================================
+    // Pestaña "Al pinchar"
     const clickTabContent = document.getElementById('clickTabContent');
 
     function safeText(v) {
@@ -991,9 +975,6 @@
       `;
     }
 
-    // ==========================================================
-    // LOAD
-    // ==========================================================
     map.on('load', async () => {
       initYearSlider();
       initLegendHandlers();
@@ -1002,10 +983,10 @@
       addMfvSourceAndLayersForYear(DEFAULT_YEAR);
       ensureBasemapBelow();
 
-      // ✅ AUTO-ZOOM al abrir usando el header del PMTiles
+      // ✅ AUTO-ZOOM al abrir al extent real del PMTiles
       await autoZoomToPmtiles(DEFAULT_YEAR);
 
-      // Cursor + click popup + pestaña
+      // Cursor + click
       map.on('mouseenter', 'mfv-fill', () => setPointerCursor(true));
       map.on('mouseleave', 'mfv-fill', () => setPointerCursor(false));
       map.on('mouseenter', 'mfv-line', () => setPointerCursor(true));
